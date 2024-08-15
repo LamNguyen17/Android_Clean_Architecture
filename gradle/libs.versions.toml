@@ -23,6 +23,9 @@ okhttp = "5.0.0-alpha.14"
 #Coil Image Loading
 coil = "2.6.0"
 
+#Swipe Refresh
+swipeRefresh = "0.24.13-rc"
+
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
 junit = { group = "junit", name = "junit", version.ref = "junit" }
@@ -53,6 +56,9 @@ converter-moshi = { group = "com.squareup.retrofit2", name = "converter-moshi", 
 
 #Coil Image Loading
 coil-compose = { group = "io.coil-kt", name = "coil-compose", version.ref = "coil" }
+
+# Swipe refresh
+accompanist-swiperefresh = { module = "com.google.accompanist:accompanist-swiperefresh", version.ref = "swipeRefresh" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
