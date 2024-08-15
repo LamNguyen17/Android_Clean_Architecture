@@ -34,20 +34,12 @@ This sample demonstrates how one can
 ```
 
 #### Dependencies
-
-- [Kotlinx Coroutines Core](https://mvnrepository.com/artifact/org.jetbrains.kotlinx/kotlinx-coroutines-core) :
-  Library support for Kotlin coroutines with multiplatform support.
-- [Lifecycle ViewModel Kotlin Extensions](https://mvnrepository.com/artifact/androidx.lifecycle/lifecycle-viewmodel-ktx) :
-  Kotlin extensions for 'viewmodel' artifact
-- [Koin](https://mvnrepository.com/artifact/io.insert-koin/koin-androidx-compose) : KOIN - Kotlin
-  simple
-  Dependency Injection Framework
-- [Ktor](https://mvnrepository.com/artifact/io.ktor/ktor-client-core) : Ktor is a framework for
-  quickly
-  creating web applications in Kotlin with minimal effort.
+- [Material3](https://mvnrepository.com/artifact/androidx.compose.material3/material3) : Compose Material You Design Components library.
+- [Hilt](https://mvnrepository.com/artifact/com.google.dagger.hilt.android/com.google.dagger.hilt.android.gradle.plugin) : A fast dependency
+  injector for Android and Java.
+- [Retrofit2](https://mvnrepository.com/artifact/com.squareup.retrofit2/retrofit) : A type-safe HTTP client for Android and Java.
 - [Coil_Compose](https://mvnrepository.com/artifact/io.coil-kt/coil-compose) : An image loading
-  library for
-  Android backed by Kotlin Coroutines.
+  library for Android backed by Kotlin Coroutines.
 
 ## 🚀 Module Structure
 
