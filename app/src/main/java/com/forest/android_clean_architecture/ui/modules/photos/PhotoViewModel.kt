@@ -20,9 +20,8 @@ class PhotoViewModel @Inject constructor(private val getPhotoUseCase: GetPhotoUs
 
     fun onIntent(event: PhotoIntent) {
         when (event) {
-            is PhotoIntent.FetchPhoto -> {
-                fetchPosts()
-            }
+            is PhotoIntent.FetchPhoto -> fetchPosts()
+            is PhotoIntent.SearchPhotos -> searchPhotos()
         }
     }
 
@@ -30,6 +29,9 @@ class PhotoViewModel @Inject constructor(private val getPhotoUseCase: GetPhotoUs
         onIntent(PhotoIntent.FetchPhoto)
     }
 
+    private fun searchPhotos() {
+        
+    }
     private fun fetchPosts() {
         viewModelScope.launch {
             _posts.value = Resources.Loading()
