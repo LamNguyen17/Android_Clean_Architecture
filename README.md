@@ -79,19 +79,16 @@ interface PhotoRemoteDataSource {
 class PhotoRepositoryImpl @Inject constructor(
     private val remoteDataSource: PhotoRemoteDataSource
 ) : PhotoRepository {
-    override fun getPhoto(): Flow<Resources<List<Hits>>> {
-        return flow {
-            emit(Resources.Loading(isLoading = true))
-            try {
-                val response = remoteDataSource.getPhoto()
-                emit(Resources.Success(data = response.hits.map { it.toEntity() }))
-                emit(Resources.Loading(isLoading = false))
-            } catch (e: Exception) {
-                emit(Resources.Error("Failed to fetch images"))
-                emit(Resources.Loading(isLoading = false))
-            }
-        }
+  override fun getPhoto(): Flow<Resources<List<Hits>>> {
+    return flow {
+      try {
+        val response = remoteDataSource.getPhoto()
+        emit(Resources.Success(data = response.hits.map { it.toEntity() }))
+      } catch (e: Exception) {
+        emit(Resources.Error("Failed to fetch images"))
+      }
     }
+  }
 }
 ```
 ### Domain
@@ -118,42 +115,32 @@ class GetPhotoUseCase @Inject constructor(
 
 ```kotlin
 class PhotoViewModel @Inject constructor(private val getPhotoUseCase: GetPhotoUseCase) :
-    ViewModel() {
-    private val _posts = MutableStateFlow<Resources<List<Hits>>>(Resources.Loading())
-    val posts: StateFlow<Resources<List<Hits>>> = _posts
+  ViewModel() {
+  private val _posts = MutableStateFlow<Resources<List<Hits>>>(Resources.Loading())
+  val posts: StateFlow<Resources<List<Hits>>> = _posts
 
-    var state by mutableStateOf(PhotoState())
-        private set
+  fun onIntent(event: PhotoIntent) {
+    when (event) {
+      is PhotoIntent.FetchPhoto -> {
+        fetchPosts()
+      }
+    }
+  }
 
-    fun onEvent(event: PhotoEvents) {
-        when (event) {
-            is PhotoEvents.PhotoLoaded -> {
-                fetchPosts()
-            }
-            is PhotoEvents.UpdateText -> {
-            }
+  init {
+    onIntent(PhotoIntent.FetchPhoto)
+  }
+
+  private fun fetchPosts() {
+    viewModelScope.launch {
+      _posts.value = Resources.Loading()
+      getPhotoUseCase.invoke()
+        .catch { e -> _posts.value = Resources.Error(e.message ?: "Unknown Error") }
+        .collect { resource ->
+          _posts.value = Resources.Success(resource.data)
         }
     }
-
-    init {
-        onEvent(PhotoEvents.PhotoLoaded(emptyList()))
-    }
-
-    private fun fetchPosts() {
-        viewModelScope.launch {
-            getPhotoUseCase().collect { resource ->
-                _posts.value = resource
-                state = when (resource) {
-                    is Resources.Loading -> state.copy(isLoading = resource.isLoading)
-                    is Resources.Error -> state.copy(isLoading = false)
-                    is Resources.Success -> state.copy(
-                        hits = resource.data ?: emptyList(),
-                        isLoading = false
-                    )
-                }
-            }
-        }
-    }
+  }
 }
 ```
 
@@ -161,84 +148,89 @@ class PhotoViewModel @Inject constructor(private val getPhotoUseCase: GetPhotoUs
 - View,updates UI
 
 ```kotlin
-fun PhotoListScreen(viewModel: PhotoViewModel) {
-    val state = viewModel.state
-    val listState = rememberLazyListState() // Remember the scroll state
+fun PhotoListScreen(viewModel: PhotoViewModel = hiltViewModel()) {
+  val state = viewModel.posts.collectAsState()
+  val listState = rememberLazyListState() // Remember the scroll state
 
-    Scaffold(topBar = {
-        TopAppBar(colors = topAppBarColors(
-            containerColor = MaterialTheme.colorScheme.primaryContainer,
-            titleContentColor = MaterialTheme.colorScheme.primary,
-        ), title = { Text("Android Clean Architecture") })
-    }, content = { innerPadding ->
-        Column(
-            modifier = Modifier.padding(innerPadding),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
-        ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .weight(1f),
-                contentAlignment = Alignment.Center
-            ) {
-                when {
-                    state.isLoading -> CircularProgressIndicator()
-                    state.hits.isEmpty() -> Text(text = "No photo found")
-                    state.hits.isNotEmpty() -> {
-                        SwipeRefresh(state = SwipeRefreshState(isRefreshing = false),
-                            onRefresh = { viewModel.onEvent(PhotoEvents.PhotoLoaded(emptyList())) }) {
-                            LazyColumn(
-                                state = listState,  // Use the remembered scroll state
-                                verticalArrangement = Arrangement.spacedBy(4.dp)
-                            ) {
-                                items(items = state.hits, key = { it.id }) {
-                                    PhotoRow(it)
-                                }
-                            }
-                        }
-                    }
+  Scaffold(topBar = {
+    TopAppBar(colors = topAppBarColors(
+      containerColor = MaterialTheme.colorScheme.primaryContainer,
+      titleContentColor = MaterialTheme.colorScheme.primary,
+    ), title = { Text("Android Clean Architecture") })
+  }, content = { innerPadding ->
+    Column(
+      modifier = Modifier.padding(innerPadding),
+      verticalArrangement = Arrangement.spacedBy(16.dp),
+    ) {
+      Box(
+        modifier = Modifier
+          .fillMaxSize()
+          .weight(1f),
+        contentAlignment = Alignment.Center
+      ) {
+        when (state.value) {
+          is Resources.Loading -> CircularProgressIndicator()
+          is Resources.Success -> {
+            val hits = (state.value as Resources.Success<List<Hits>>).data
+            if (hits.isNullOrEmpty()) {
+              Text(text = "No photo found")
+            } else {
+              SwipeRefresh(state = SwipeRefreshState(isRefreshing = false),
+                onRefresh = { viewModel.onIntent(PhotoIntent.FetchPhoto) }) {
+                LazyColumn(
+                  state = listState,  // Use the remembered scroll state
+                  verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                  items(items = hits, key = { it.id }) {
+                    PhotoRow(it)
+                  }
                 }
+              }
             }
+          }
+          is Resources.Error -> Text(text = "Error")
         }
-    })
+      }
+    }
+  })
 }
 
 @Composable
 fun PhotoRow(hit: Hits) {
-    Card(
-        shape = RoundedCornerShape(8.dp), // Set the border radius here
-        elevation = CardDefaults.cardElevation(defaultElevation = 8.dp),
+  Card(
+    shape = RoundedCornerShape(8.dp), // Set the border radius here
+    elevation = CardDefaults.cardElevation(defaultElevation = 8.dp),
+    modifier = Modifier
+      .padding(
+        start = 16.dp, end = 16.dp, top = 16.dp, bottom = 0.dp
+      ) // Set left and right margins
+      .fillMaxWidth()
+      .clickable {},
+  ) {
+    Row(modifier = Modifier.padding(16.dp)) {
+      AsyncImage(
+        model = ImageRequest.Builder(LocalContext.current).data(hit.previewURL)
+          .crossfade(true) // Optional crossfade animation
+          .placeholder(R.drawable.placeholder_image) // Default image while loading
+          .error(R.drawable.placeholder_image) // Image if there's an error
+          .size(Size.ORIGINAL) // Optionally specify size to preload at
+          .memoryCachePolicy(CachePolicy.ENABLED) // Enable memory caching
+          .build(),
+        contentDescription = "Preview image of ${hit.user}",
+        contentScale = ContentScale.FillBounds,
         modifier = Modifier
-            .padding(
-                start = 16.dp, end = 16.dp, top = 16.dp, bottom = 0.dp
-            ) // Set left and right margins
-            .fillMaxWidth()
-            .clickable {},
-    ) {
-        Row(modifier = Modifier.padding(16.dp)) {
-            AsyncImage(
-                model = ImageRequest.Builder(LocalContext.current).data(hit.previewURL)
-                    .crossfade(true) // Optional crossfade animation
-                    .placeholder(R.drawable.placeholder_image) // Default image while loading
-                    .error(R.drawable.placeholder_image) // Image if there's an error
-                    .size(Size.ORIGINAL) // Optionally specify size to preload at
-                    .memoryCachePolicy(CachePolicy.ENABLED) // Enable memory caching
-                    .build(),
-                contentDescription = "Preview image of ${hit.user}",
-                contentScale = ContentScale.FillBounds,
-                modifier = Modifier
-                    .height(100.dp)
-                    .width(100.dp)
-                    .clip(RoundedCornerShape(50.dp))
-            )
-            Column(modifier = Modifier.padding(start = 10.dp)) {
-                Text(text = hit.user, fontWeight = FontWeight.Bold)
-                Text(text = "Thẻ: ${hit.tags}", maxLines = 1)
-                Text(text = "Lượt thích: ${hit.likes}")
-                Text(text = "Bình luận: ${hit.comments}")
-            }
-        }
+          .height(100.dp)
+          .width(100.dp)
+          .clip(RoundedCornerShape(50.dp))
+      )
+      Column(modifier = Modifier.padding(start = 10.dp)) {
+        Text(text = hit.user, fontWeight = FontWeight.Bold)
+        Text(text = "Thẻ: ${hit.tags}", maxLines = 1)
+        Text(text = "Lượt thích: ${hit.likes}")
+        Text(text = "Bình luận: ${hit.comments}")
+      }
     }
+  }
 }
 ```
 ## 🚀 Screenshoots

@@ -85,23 +85,7 @@ fun PhotoListScreen(viewModel: PhotoViewModel = hiltViewModel()) {
                             }
                         }
                     }
-
                     is Resources.Error -> Text(text = "Error")
-
-//                    state.hits.isEmpty() -> Text(text = "No photo found")
-//                    state.hits.isNotEmpty() -> {
-//                        SwipeRefresh(state = SwipeRefreshState(isRefreshing = false),
-//                            onRefresh = { viewModel.onEvent(PhotoEvents.FetchPhoto) }) {
-//                            LazyColumn(
-//                                state = listState,  // Use the remembered scroll state
-//                                verticalArrangement = Arrangement.spacedBy(4.dp)
-//                            ) {
-//                                items(items = state.hits, key = { it.id }) {
-//                                    PhotoRow(it)
-//                                }
-//                            }
-//                        }
-//                    }
                 }
             }
         }
