@@ -15,14 +15,11 @@ class PhotoRepositoryImpl @Inject constructor(
 ) : PhotoRepository {
     override fun getPhoto(): Flow<Resources<List<Hits>>> {
         return flow {
-            emit(Resources.Loading(isLoading = true))
             try {
                 val response = remoteDataSource.getPhoto()
                 emit(Resources.Success(data = response.hits.map { it.toEntity() }))
-                emit(Resources.Loading(isLoading = false))
             } catch (e: Exception) {
                 emit(Resources.Error("Failed to fetch images"))
-                emit(Resources.Loading(isLoading = false))
             }
         }
     }

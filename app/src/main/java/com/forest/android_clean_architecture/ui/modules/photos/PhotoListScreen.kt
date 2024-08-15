@@ -25,25 +25,28 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.ui.Modifier
 import androidx.compose.material3.TopAppBarDefaults.topAppBarColors
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.hilt.navigation.compose.hiltViewModel
 import coil.compose.AsyncImage
 import coil.request.CachePolicy
 import coil.request.ImageRequest
 import coil.size.Size
 import com.forest.android_clean_architecture.R
+import com.forest.android_clean_architecture.common.Resources
 import com.forest.android_clean_architecture.domain.entities.photo.Hits
 import com.google.accompanist.swiperefresh.SwipeRefresh
 import com.google.accompanist.swiperefresh.SwipeRefreshState
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun PhotoListScreen(viewModel: PhotoViewModel) {
-    val state = viewModel.state
+fun PhotoListScreen(viewModel: PhotoViewModel = hiltViewModel()) {
+    val state = viewModel.posts.collectAsState()
     val listState = rememberLazyListState() // Remember the scroll state
 
     Scaffold(topBar = {
@@ -62,22 +65,43 @@ fun PhotoListScreen(viewModel: PhotoViewModel) {
                     .weight(1f),
                 contentAlignment = Alignment.Center
             ) {
-                when {
-                    state.isLoading -> CircularProgressIndicator()
-                    state.hits.isEmpty() -> Text(text = "No photo found")
-                    state.hits.isNotEmpty() -> {
-                        SwipeRefresh(state = SwipeRefreshState(isRefreshing = false),
-                            onRefresh = { viewModel.onEvent(PhotoEvents.PhotoLoaded(emptyList())) }) {
-                            LazyColumn(
-                                state = listState,  // Use the remembered scroll state
-                                verticalArrangement = Arrangement.spacedBy(4.dp)
-                            ) {
-                                items(items = state.hits, key = { it.id }) {
-                                    PhotoRow(it)
+                when (state.value) {
+                    is Resources.Loading -> CircularProgressIndicator()
+                    is Resources.Success -> {
+                        val hits = (state.value as Resources.Success<List<Hits>>).data
+                        if (hits.isNullOrEmpty()) {
+                            Text(text = "No photo found")
+                        } else {
+                            SwipeRefresh(state = SwipeRefreshState(isRefreshing = false),
+                                onRefresh = { viewModel.onIntent(PhotoIntent.FetchPhoto) }) {
+                                LazyColumn(
+                                    state = listState,  // Use the remembered scroll state
+                                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                                ) {
+                                    items(items = hits, key = { it.id }) {
+                                        PhotoRow(it)
+                                    }
                                 }
                             }
                         }
                     }
+
+                    is Resources.Error -> Text(text = "Error")
+
+//                    state.hits.isEmpty() -> Text(text = "No photo found")
+//                    state.hits.isNotEmpty() -> {
+//                        SwipeRefresh(state = SwipeRefreshState(isRefreshing = false),
+//                            onRefresh = { viewModel.onEvent(PhotoEvents.FetchPhoto) }) {
+//                            LazyColumn(
+//                                state = listState,  // Use the remembered scroll state
+//                                verticalArrangement = Arrangement.spacedBy(4.dp)
+//                            ) {
+//                                items(items = state.hits, key = { it.id }) {
+//                                    PhotoRow(it)
+//                                }
+//                            }
+//                        }
+//                    }
                 }
             }
         }
