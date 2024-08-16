@@ -10,7 +10,7 @@ import com.forest.android_clean_architecture.domain.repositories.PhotoRepository
 class GetPhotoUseCase @Inject constructor(
     private val repository: PhotoRepository
 ) {
-    suspend operator fun invoke(): Flow<Resources<List<Hits>>> {
-        return repository.getPhoto()
+    suspend operator fun invoke(query: String?): Flow<Resources<List<Hits>>> {
+        return repository.getPhoto(query)
     }
 }

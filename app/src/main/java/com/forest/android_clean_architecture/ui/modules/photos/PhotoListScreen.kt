@@ -59,10 +59,10 @@ import com.google.accompanist.swiperefresh.SwipeRefreshState
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PhotoListScreen(viewModel: PhotoViewModel = hiltViewModel()) {
-    val state = viewModel.posts.collectAsState()
+    val state = viewModel.state.collectAsState()
     val listState = rememberLazyListState() // Remember the scroll state
 
-    var text by remember { mutableStateOf("") }
+    var query by remember { mutableStateOf("") }
     val focusManager = LocalFocusManager.current
 
     Scaffold(topBar = {
@@ -77,34 +77,39 @@ fun PhotoListScreen(viewModel: PhotoViewModel = hiltViewModel()) {
                 .padding(innerPadding),
             horizontalAlignment = Alignment.CenterHorizontally, // Horizontally centers children
         ) {
-//            TextField(
-//                value = text,
-//                onValueChange = { newText -> text = newText },
-//                label = { Text("Enter text") },
-//                placeholder = { Text("Type something...") },
-//                modifier = Modifier.fillMaxWidth(),
-//                keyboardOptions = KeyboardOptions.Default.copy(
-//                    keyboardType = KeyboardType.Text,
-//                    imeAction = ImeAction.Done
-//                ),
-//                keyboardActions = KeyboardActions(
-//                    onDone = {
-//                        focusManager.clearFocus()
-//                    }
-//                ),
-//            )
+            TextField(
+                value = query,
+                onValueChange = {
+                    query = it
+                    viewModel.onIntent(PhotoIntent.SearchPhotos(it, 1))
+//                    viewModel.onQueryChanged(it)
+                },
+                label = { Text("Enter text") },
+                placeholder = { Text("Type something...") },
+                modifier = Modifier.fillMaxWidth(),
+                keyboardOptions = KeyboardOptions.Default.copy(
+                    keyboardType = KeyboardType.Text,
+                    imeAction = ImeAction.Done
+                ),
+                keyboardActions = KeyboardActions(
+                    onDone = {
+                        focusManager.clearFocus()
+                    }
+                ),
+            )
 
             Spacer(modifier = Modifier.height(0.dp))
 
             when (state.value) {
-                is Resources.Loading -> CircularProgressIndicator()
-                is Resources.Success -> {
-                    val hits = (state.value as Resources.Success<List<Hits>>).data
+                is SearchState.Loading -> CircularProgressIndicator()
+                is SearchState.Success -> {
+                    println("PhotoListScreen_value: ${state.value}")
+                    val hits = (state.value as SearchState.Success).data
                     if (hits.isNullOrEmpty()) {
                         Text(text = "No photo found")
                     } else {
                         SwipeRefresh(state = SwipeRefreshState(isRefreshing = false),
-                            onRefresh = { viewModel.onIntent(PhotoIntent.FetchPhoto) }) {
+                            onRefresh = { viewModel.onIntent(PhotoIntent.SearchPhotosWithoutQuery) }) {
                             LazyColumn(
                                 state = listState,  // Use the remembered scroll state
                                 verticalArrangement = Arrangement.spacedBy(4.dp)
@@ -117,7 +122,9 @@ fun PhotoListScreen(viewModel: PhotoViewModel = hiltViewModel()) {
                     }
                 }
 
-                is Resources.Error -> Text(text = "Error")
+                is SearchState.Error -> Text(text = "Error")
+                is SearchState.Idle -> Text(text = "Idle")
+                else -> Text(text = "null")
             }
         }
     })

@@ -7,8 +7,11 @@ import dagger.hilt.components.SingletonComponent
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
 import javax.inject.Singleton
+import okhttp3.OkHttpClient
 
 import com.forest.android_clean_architecture.data.config.AppConfig
+import com.forest.android_clean_architecture.data.config.AuthInterceptor
+import com.forest.android_clean_architecture.data.config.LoggingInterceptor
 import com.forest.android_clean_architecture.data.datasources.photo.PhotoRemoteDataSource
 import com.forest.android_clean_architecture.data.repositories.PhotoRepositoryImpl
 import com.forest.android_clean_architecture.domain.repositories.PhotoRepository
@@ -18,9 +21,22 @@ import com.forest.android_clean_architecture.domain.repositories.PhotoRepository
 object AppModule {
     @Provides
     @Singleton
-    fun provideRetrofit(): Retrofit {
+    fun provideOkHttpClient(
+        authInterceptor: AuthInterceptor,
+        loggingInterceptor: LoggingInterceptor,
+    ): OkHttpClient {
+        return OkHttpClient.Builder()
+            .addInterceptor(authInterceptor)
+            .addInterceptor(loggingInterceptor)
+            .build()
+    }
+
+    @Provides
+    @Singleton
+    fun provideRetrofit(okHttpClient: OkHttpClient): Retrofit {
         return Retrofit.Builder()
             .baseUrl(AppConfig.BASE_URL)
+            .client(okHttpClient)
             .addConverterFactory(GsonConverterFactory.create())
             .build()
     }
