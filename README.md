@@ -68,8 +68,11 @@ There are 3 main modules to help separate the code. They are Data, Domain, and P
 
 ```kotlin
 interface PhotoRemoteDataSource {
-    @GET("?key=${AppConfig.API_KEY}")
-    suspend fun getPhoto(): PhotosResponse
+  @GET("?key=${AppConfig.API_KEY}")
+  suspend fun getPhotos(
+    @Query("q") query: String?,
+    @Query("page") page: Int
+  ): PhotosResponse
 }
 ```
 
@@ -77,13 +80,13 @@ interface PhotoRemoteDataSource {
 
 ```kotlin
 class PhotoRepositoryImpl @Inject constructor(
-    private val remoteDataSource: PhotoRemoteDataSource
+  private val remoteDataSource: PhotoRemoteDataSource
 ) : PhotoRepository {
-  override fun getPhoto(): Flow<Resources<List<Hits>>> {
+  override fun getPhoto(query: String?, page: Int): Flow<Resources<Photos>> {
     return flow {
       try {
-        val response = remoteDataSource.getPhoto()
-        emit(Resources.Success(data = response.hits.map { it.toEntity() }))
+        val response = remoteDataSource.getPhotos(query, page)
+        emit(Resources.Success(data = response.toEntity()))
       } catch (e: Exception) {
         emit(Resources.Error("Failed to fetch images"))
       }
@@ -103,8 +106,14 @@ class PhotoRepositoryImpl @Inject constructor(
 class GetPhotoUseCase @Inject constructor(
   private val repository: PhotoRepository
 ) {
-  suspend operator fun invoke(): Flow<Resources<List<Hits>>> {
-    return repository.getPhoto()
+  suspend operator fun invoke(query: String?, page: Int): Flow<Resources<Photos>> {
+    return if (query.isNullOrEmpty()) {
+      flow {
+        emit(Resources.Success(data = null))
+      }
+    } else {
+      repository.getPhoto(query, page)
+    }
   }
 }
 ```
@@ -116,30 +125,63 @@ class GetPhotoUseCase @Inject constructor(
 ```kotlin
 class PhotoViewModel @Inject constructor(private val getPhotoUseCase: GetPhotoUseCase) :
   ViewModel() {
-  private val _posts = MutableStateFlow<Resources<List<Hits>>>(Resources.Loading())
-  val posts: StateFlow<Resources<List<Hits>>> = _posts
+  private val queryFlow = MutableStateFlow("")
+  private val refreshTrigger = MutableSharedFlow<Unit>(replay = 1).apply { tryEmit(Unit) }
+  private val loadMoreTrigger = MutableSharedFlow<Unit>(replay = 1).apply { tryEmit(Unit) }
+
+  private var currentPage = 1
+  private val appendPhotos = mutableListOf<Hits>()
+
+  val state: StateFlow<SearchState?> = combine(
+    queryFlow,
+    refreshTrigger,
+    loadMoreTrigger,
+  ) { query, _, _ -> query }
+    .debounce(350)
+    .flatMapLatest {
+      getPhotoUseCase.invoke(it, currentPage).onEach { resource ->
+        if (resource is Resources.Success) {
+          if (currentPage == 1) {
+            appendPhotos.clear()
+          }
+          val hits = resource.data?.hits ?: emptyList()
+          appendPhotos.addAll(hits)
+        }
+      }
+    }
+    .map { resource ->
+      when (resource) {
+        is Resources.Loading -> SearchState.Loading
+        is Resources.Success -> SearchState.Success(data = Photos(
+          total = resource.data?.total ?: 0,
+          totalHits = resource.data?.totalHits ?: 0,
+          hits = appendPhotos.toList()
+        ))
+        is Resources.Error -> SearchState.Error(resource.message.toString())
+      }
+    }
+    .stateIn(viewModelScope, SharingStarted.Lazily, SearchState.Idle)
 
   fun onIntent(event: PhotoIntent) {
     when (event) {
-      is PhotoIntent.FetchPhoto -> {
-        fetchPosts()
+      is PhotoIntent.SearchPhotosWithoutQuery -> queryFlow.value = ""
+      is PhotoIntent.SearchPhotos -> {
+        currentPage = 1
+        queryFlow.value = event.q
+      }
+      is PhotoIntent.RefreshPhotos -> {
+        currentPage = 1
+        refreshTrigger.tryEmit(Unit)
+      }
+      is PhotoIntent.LoadMorePhotos -> {
+        currentPage += 1
+        loadMoreTrigger.tryEmit(Unit)
       }
     }
   }
 
   init {
-    onIntent(PhotoIntent.FetchPhoto)
-  }
-
-  private fun fetchPosts() {
-    viewModelScope.launch {
-      _posts.value = Resources.Loading()
-      getPhotoUseCase.invoke()
-        .catch { e -> _posts.value = Resources.Error(e.message ?: "Unknown Error") }
-        .collect { resource ->
-          _posts.value = Resources.Success(resource.data)
-        }
-    }
+    onIntent(PhotoIntent.SearchPhotosWithoutQuery)
   }
 }
 ```
@@ -149,8 +191,11 @@ class PhotoViewModel @Inject constructor(private val getPhotoUseCase: GetPhotoUs
 
 ```kotlin
 fun PhotoListScreen(viewModel: PhotoViewModel = hiltViewModel()) {
-  val state = viewModel.posts.collectAsState()
+  val state = viewModel.state.collectAsState()
   val listState = rememberLazyListState() // Remember the scroll state
+
+  var query by remember { mutableStateOf("") }
+  val focusManager = LocalFocusManager.current
 
   Scaffold(topBar = {
     TopAppBar(colors = topAppBarColors(
@@ -159,37 +204,72 @@ fun PhotoListScreen(viewModel: PhotoViewModel = hiltViewModel()) {
     ), title = { Text("Android Clean Architecture") })
   }, content = { innerPadding ->
     Column(
-      modifier = Modifier.padding(innerPadding),
-      verticalArrangement = Arrangement.spacedBy(16.dp),
+      modifier = Modifier
+        .fillMaxSize()
+        .padding(innerPadding),
+      horizontalAlignment = Alignment.CenterHorizontally, // Horizontally centers children
     ) {
-      Box(
-        modifier = Modifier
-          .fillMaxSize()
-          .weight(1f),
-        contentAlignment = Alignment.Center
-      ) {
-        when (state.value) {
-          is Resources.Loading -> CircularProgressIndicator()
-          is Resources.Success -> {
-            val hits = (state.value as Resources.Success<List<Hits>>).data
-            if (hits.isNullOrEmpty()) {
-              Text(text = "No photo found")
-            } else {
-              SwipeRefresh(state = SwipeRefreshState(isRefreshing = false),
-                onRefresh = { viewModel.onIntent(PhotoIntent.FetchPhoto) }) {
-                LazyColumn(
-                  state = listState,  // Use the remembered scroll state
-                  verticalArrangement = Arrangement.spacedBy(4.dp)
-                ) {
-                  items(items = hits, key = { it.id }) {
-                    PhotoRow(it)
+      TextField(
+        value = query,
+        onValueChange = {
+          query = it
+          viewModel.onIntent(PhotoIntent.SearchPhotos(it, 1))
+        },
+        label = { Text("Enter text") },
+        placeholder = { Text("Type something...") },
+        modifier = Modifier.fillMaxWidth(),
+        keyboardOptions = KeyboardOptions.Default.copy(
+          keyboardType = KeyboardType.Text,
+          imeAction = ImeAction.Done
+        ),
+        keyboardActions = KeyboardActions(
+          onDone = {
+            focusManager.clearFocus()
+          }
+        ),
+      )
+
+      Spacer(modifier = Modifier.height(0.dp))
+
+      when (state.value) {
+        is SearchState.Loading -> CircularProgressIndicator()
+        is SearchState.Success -> {
+          val hits = (state.value as SearchState.Success).data.hits
+          println("PhotoListScreen_value: ${(state.value as SearchState.Success).data.totalHits} - ${hits.size}")
+          if (hits.isNullOrEmpty()) {
+            Text(text = "No photo found")
+          } else {
+            focusManager.clearFocus()
+            SwipeRefresh(state = SwipeRefreshState(isRefreshing = false),
+              onRefresh = { viewModel.onIntent(PhotoIntent.RefreshPhotos(query)) }) {
+              LazyColumn(
+                state = listState,  // Use the remembered scroll state
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+              ) {
+                items(items = hits, key = { it.id }) {
+                  PhotoRow(it)
+                }
+                if (hits.size < (state.value as SearchState.Success).data.totalHits) {
+                  item {
+                    LaunchedEffect(Unit) {
+                      viewModel.onIntent(PhotoIntent.LoadMorePhotos(query))
+                    }
+                    CircularProgressIndicator(
+                      modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp)
+                        .wrapContentWidth(Alignment.CenterHorizontally)
+                    )
                   }
                 }
               }
             }
           }
-          is Resources.Error -> Text(text = "Error")
         }
+
+        is SearchState.Error -> Text(text = "Error")
+        is SearchState.Idle -> Text(text = "Idle")
+        else -> Text(text = "null")
       }
     }
   })
