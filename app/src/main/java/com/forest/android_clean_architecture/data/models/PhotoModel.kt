@@ -1,6 +1,7 @@
 package com.forest.android_clean_architecture.data.models
 
 import com.forest.android_clean_architecture.domain.entities.photo.Hits
+import com.forest.android_clean_architecture.domain.entities.photo.Photos
 
 data class PhotosResponse(
     val total: Int,
@@ -31,6 +32,14 @@ data class HitsResponse(
     val user: String,
     val userImageURL: String,
 )
+
+fun PhotosResponse.toEntity(): Photos {
+    return Photos(
+        total = total,
+        totalHits = totalHits,
+        hits = hits.map { it.toEntity() }
+    )
+}
 
 fun HitsResponse.toEntity(): Hits {
     return Hits(

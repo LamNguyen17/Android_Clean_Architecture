@@ -10,13 +10,13 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -29,6 +29,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.ui.Modifier
 import androidx.compose.material3.TopAppBarDefaults.topAppBarColors
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -48,6 +49,7 @@ import coil.compose.AsyncImage
 import coil.request.CachePolicy
 import coil.request.ImageRequest
 import coil.size.Size
+
 import com.forest.android_clean_architecture.R
 import com.forest.android_clean_architecture.domain.entities.photo.Hits
 import com.google.accompanist.swiperefresh.SwipeRefresh
@@ -99,11 +101,12 @@ fun PhotoListScreen(viewModel: PhotoViewModel = hiltViewModel()) {
             when (state.value) {
                 is SearchState.Loading -> CircularProgressIndicator()
                 is SearchState.Success -> {
-                    val hits = (state.value as SearchState.Success).data
-                    println("PhotoListScreen_value: ${state.value} - $hits")
+                    val hits = (state.value as SearchState.Success).data.hits
+                    println("PhotoListScreen_value: ${(state.value as SearchState.Success).data.totalHits} - ${hits.size}")
                     if (hits.isNullOrEmpty()) {
                         Text(text = "No photo found")
                     } else {
+                        focusManager.clearFocus()
                         SwipeRefresh(state = SwipeRefreshState(isRefreshing = false),
                             onRefresh = { viewModel.onIntent(PhotoIntent.RefreshPhotos(query)) }) {
                             LazyColumn(
@@ -113,25 +116,17 @@ fun PhotoListScreen(viewModel: PhotoViewModel = hiltViewModel()) {
                                 items(items = hits, key = { it.id }) {
                                     PhotoRow(it)
                                 }
-
-//                                item {
-//                                    // This composable will trigger the load more function
-//                                    LaunchedEffect(Unit) {
-//                                        viewModel.onIntent(PhotoIntent.LoadMorePhotos(query))
-//                                    }
-//                                    CircularProgressIndicator(
-//                                        modifier = Modifier
-//                                            .fillMaxWidth()
-//                                            .padding(16.dp)
-//                                            .wrapContentWidth(Alignment.CenterHorizontally)
-//                                    )
-//                                }
-
-                                item {
-                                    Button(onClick = {
-                                        viewModel.onIntent(PhotoIntent.LoadMorePhotos(query))
-                                    }) {
-                                        Text("Load More")
+                                if (hits.size < (state.value as SearchState.Success).data.totalHits) {
+                                    item {
+                                        LaunchedEffect(Unit) {
+                                            viewModel.onIntent(PhotoIntent.LoadMorePhotos(query))
+                                        }
+                                        CircularProgressIndicator(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(16.dp)
+                                                .wrapContentWidth(Alignment.CenterHorizontally)
+                                        )
                                     }
                                 }
                             }
