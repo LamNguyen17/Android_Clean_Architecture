@@ -2,7 +2,6 @@ package com.forest.android_clean_architecture.ui.modules.photos
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -17,6 +16,7 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -25,7 +25,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
-import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.TopAppBar
 import androidx.compose.ui.Modifier
 import androidx.compose.material3.TopAppBarDefaults.topAppBarColors
@@ -37,7 +36,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
@@ -51,7 +49,6 @@ import coil.request.CachePolicy
 import coil.request.ImageRequest
 import coil.size.Size
 import com.forest.android_clean_architecture.R
-import com.forest.android_clean_architecture.common.Resources
 import com.forest.android_clean_architecture.domain.entities.photo.Hits
 import com.google.accompanist.swiperefresh.SwipeRefresh
 import com.google.accompanist.swiperefresh.SwipeRefreshState
@@ -82,7 +79,6 @@ fun PhotoListScreen(viewModel: PhotoViewModel = hiltViewModel()) {
                 onValueChange = {
                     query = it
                     viewModel.onIntent(PhotoIntent.SearchPhotos(it, 1))
-//                    viewModel.onQueryChanged(it)
                 },
                 label = { Text("Enter text") },
                 placeholder = { Text("Type something...") },
@@ -103,19 +99,40 @@ fun PhotoListScreen(viewModel: PhotoViewModel = hiltViewModel()) {
             when (state.value) {
                 is SearchState.Loading -> CircularProgressIndicator()
                 is SearchState.Success -> {
-                    println("PhotoListScreen_value: ${state.value}")
                     val hits = (state.value as SearchState.Success).data
+                    println("PhotoListScreen_value: ${state.value} - $hits")
                     if (hits.isNullOrEmpty()) {
                         Text(text = "No photo found")
                     } else {
                         SwipeRefresh(state = SwipeRefreshState(isRefreshing = false),
-                            onRefresh = { viewModel.onIntent(PhotoIntent.SearchPhotosWithoutQuery) }) {
+                            onRefresh = { viewModel.onIntent(PhotoIntent.RefreshPhotos(query)) }) {
                             LazyColumn(
                                 state = listState,  // Use the remembered scroll state
                                 verticalArrangement = Arrangement.spacedBy(4.dp)
                             ) {
                                 items(items = hits, key = { it.id }) {
                                     PhotoRow(it)
+                                }
+
+//                                item {
+//                                    // This composable will trigger the load more function
+//                                    LaunchedEffect(Unit) {
+//                                        viewModel.onIntent(PhotoIntent.LoadMorePhotos(query))
+//                                    }
+//                                    CircularProgressIndicator(
+//                                        modifier = Modifier
+//                                            .fillMaxWidth()
+//                                            .padding(16.dp)
+//                                            .wrapContentWidth(Alignment.CenterHorizontally)
+//                                    )
+//                                }
+
+                                item {
+                                    Button(onClick = {
+                                        viewModel.onIntent(PhotoIntent.LoadMorePhotos(query))
+                                    }) {
+                                        Text("Load More")
+                                    }
                                 }
                             }
                         }

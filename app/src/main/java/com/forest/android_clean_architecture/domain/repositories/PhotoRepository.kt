@@ -5,5 +5,5 @@ import com.forest.android_clean_architecture.common.Resources
 import kotlinx.coroutines.flow.Flow
 
 interface PhotoRepository {
-    fun getPhoto(query: String?): Flow<Resources<List<Hits>>>
+    fun getPhoto(query: String?, page: Int): Flow<Resources<List<Hits>>>
 }

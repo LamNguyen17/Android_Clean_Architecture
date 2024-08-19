@@ -8,7 +8,8 @@ import retrofit2.http.Query
 interface PhotoRemoteDataSource {
     @GET("?key=${AppConfig.API_KEY}")
     suspend fun getPhotos(
-        @Query("q") query: String?
+        @Query("q") query: String?,
+        @Query("page") page: Int
     ): PhotosResponse
 
     @GET("?key=${AppConfig.API_KEY}")

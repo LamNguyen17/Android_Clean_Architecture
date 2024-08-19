@@ -18,7 +18,7 @@ import kotlinx.coroutines.time.debounce
 class PhotoRepositoryImpl @Inject constructor(
     private val remoteDataSource: PhotoRemoteDataSource
 ) : PhotoRepository {
-    override fun getPhoto(query: String?): Flow<Resources<List<Hits>>> {
+    override fun getPhoto(query: String?, page: Int): Flow<Resources<List<Hits>>> {
         return flow {
             try {
                 println("PhotoRepositoryImpl: $query")
@@ -26,7 +26,7 @@ class PhotoRepositoryImpl @Inject constructor(
                     val response = remoteDataSource.getPhotosWithoutQuery()
                     emit(Resources.Success(data = response.hits.map { it.toEntity() }))
                 } else {
-                    val response = remoteDataSource.getPhotos(query)
+                    val response = remoteDataSource.getPhotos(query, page)
                     emit(Resources.Success(data = response.hits.map { it.toEntity() }))
                 }
             } catch (e: Exception) {
