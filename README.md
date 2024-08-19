@@ -315,6 +315,6 @@ fun PhotoRow(hit: Hits) {
 ```
 ## 🚀 Screenshoots
 
-|         Image         |                           |
-|:---------------------:|:-------------------------:|
-| ![](assets/image.png) |                           | 
+|    Default Search    | Search keyword (ex: flo) |
+|:--------------------:|:------------------------:|
+| ![](assets/img1.png) |   ![](assets/img2.png)   |

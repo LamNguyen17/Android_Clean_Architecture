@@ -102,11 +102,10 @@ fun PhotoListScreen(viewModel: PhotoViewModel = hiltViewModel()) {
                 is SearchState.Loading -> CircularProgressIndicator()
                 is SearchState.Success -> {
                     val hits = (state.value as SearchState.Success).data.hits
-                    println("PhotoListScreen_value: ${(state.value as SearchState.Success).data.totalHits} - ${hits.size}")
+                    val totalHits = (state.value as SearchState.Success).data.totalHits
                     if (hits.isNullOrEmpty()) {
                         Text(text = "No photo found")
                     } else {
-                        focusManager.clearFocus()
                         SwipeRefresh(state = SwipeRefreshState(isRefreshing = false),
                             onRefresh = { viewModel.onIntent(PhotoIntent.RefreshPhotos(query)) }) {
                             LazyColumn(
@@ -116,7 +115,7 @@ fun PhotoListScreen(viewModel: PhotoViewModel = hiltViewModel()) {
                                 items(items = hits, key = { it.id }) {
                                     PhotoRow(it)
                                 }
-                                if (hits.size < (state.value as SearchState.Success).data.totalHits) {
+                                if (hits.size < totalHits) {
                                     item {
                                         LaunchedEffect(Unit) {
                                             viewModel.onIntent(PhotoIntent.LoadMorePhotos(query))
